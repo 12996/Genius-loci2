@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//f/python_P/project/**)",
+      "Bash(conda run:*)"
+    ]
+  }
+}

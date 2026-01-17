@@ -1,0 +1,35 @@
+# ========================================
+# 气泡笔记 (Bubble Note) API 依赖
+# ========================================
+
+# FastAPI 核心框架
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# Supabase 客户端
+supabase==2.3.4
+
+# Pydantic 数据验证
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# HTTP 请求库
+requests==2.31.0
+httpx==0.26.0
+
+# 阿里云 OSS
+oss2==2.18.4
+
+# 环境变量管理
+python-dotenv==1.0.0
+
+# 异步支持
+asyncio==3.4.3
+aiofiles==23.2.1
+
+# 日志
+loguru==0.7.2
+
+# 工具库
+python-dateutil==2.8.2
