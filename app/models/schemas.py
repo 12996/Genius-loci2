@@ -48,8 +48,8 @@ class BubbleNoteCreate(BaseModel):
     @validator('status')
     def validate_status(cls, v):
         """校验状态值"""
-        if v not in [1, 2]:
-            raise ValueError('状态必须为 1 (公开) 或 2 (私有)')
+        if v not in [1, 2, 3]:
+            raise ValueError('状态必须为 1 (公开) 或 2 (私有)或3(对话)')
         return v
 
     @validator('content')
@@ -123,7 +123,7 @@ class GetNearbyBubblesRequest(BaseModel):
     latitude: float = Field(..., description="中心点纬度")
     radius_km: float = Field(1.0, description="搜索半径 (公里)")
     limit: int = Field(20, description="返回数量限制")
-    status: Optional[int] = Field(None, description="状态筛选 (1-公开/2-私有)")
+    status: Optional[int] = Field(None, description="状态筛选 (1-公开/2-私有/3-对话)")
 
     @validator('longitude')
     def validate_longitude(cls, v):
@@ -263,5 +263,98 @@ class BubbleNoteListResponse(BaseModel):
                 "message": "success",
                 "data": [],
                 "total": 0
+            }
+        }
+
+
+# ========================================
+# 地灵对话请求/响应模型
+# ========================================
+
+class GeniusLociChatRequest(BaseModel):
+    """地灵对话请求模型"""
+
+    user_id: int = Field(..., description="用户 ID")
+    message: str = Field(..., description="用户消息内容")
+    gps_longitude: float = Field(..., description="经度 [-180, 180]")
+    gps_latitude: float = Field(..., description="纬度 [-90, 90]")
+    session_id: Optional[str] = Field(None, description="会话 ID（首次对话时为空）")
+    image_url: Optional[str] = Field(None, description="图片 URL（首次对话时传入）")
+
+    @validator('gps_longitude')
+    def validate_longitude(cls, v):
+        """校验经度范围"""
+        if not -180 <= v <= 180:
+            raise ValueError('经度必须在 [-180, 180] 范围内')
+        return v
+
+    @validator('gps_latitude')
+    def validate_latitude(cls, v):
+        """校验纬度范围"""
+        if not -90 <= v <= 90:
+            raise ValueError('纬度必须在 [-90, 90] 范围内')
+        return v
+
+    @validator('message')
+    def validate_message(cls, v):
+        """校验消息内容"""
+        if not v or not v.strip():
+            raise ValueError('消息内容不能为空')
+        return v.strip()
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "user_id": 1,
+                "message": "你好，今天天气真好！",
+                "gps_longitude": 120.15507,
+                "gps_latitude": 30.27408,
+                "session_id": None,
+                "image_url": "https://example.com/image.jpg"
+            }
+        }
+
+
+class GeniusLociChatResponse(BaseModel):
+    """地灵对话响应模型"""
+
+    code: int = Field(200, description="状态码")
+    message: str = Field("success", description="响应消息")
+    session_id: str = Field(..., description="会话 ID")
+    data: Optional[dict] = Field(None, description="其他数据")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "code": 200,
+                "message": "success",
+                "session_id": "uuid-string",
+                "data": None
+            }
+        }
+
+
+class GeniusLociRecordResponse(BaseModel):
+    """地灵记忆记录响应模型"""
+
+    id: int
+    user_id: int
+    session_id: str
+    ai_result: str
+    gps_longitude: float
+    gps_latitude: float
+    create_time: datetime
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "id": 1,
+                "user_id": 1,
+                "session_id": "uuid-string",
+                "ai_result": "用户表达了对天气的喜悦，地灵回应以温暖的问候",
+                "gps_longitude": 120.15507,
+                "gps_latitude": 30.27408,
+                "create_time": "2025-01-17T12:00:00"
             }
         }

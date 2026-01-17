@@ -33,16 +33,24 @@ class Settings:
     OSS_BUCKET_NAME: str = os.getenv("OSS_BUCKET_NAME", "")
     OSS_BUCKET_DOMAIN: str = os.getenv("OSS_BUCKET_DOMAIN", "")
 
-    # 魔搭模型配置
+    # 魔搭模型配置（对话模型）
     MODEL_NAME: str = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
     MODEL_API_KEY: str = os.getenv("MODEL_API_KEY", "")
     MODEL_API_URL: str = os.getenv(
         "MODEL_API_URL",
         "https://api-inference.modelscope.cn/v1/chat/completions"
     )
-    TEMPERATURE: float = float(os.getenv("TEMPERATURE", "0.1"))
-    MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "50"))
+    TEMPERATURE: float = float(os.getenv("TEMPERATURE", "0.7"))
+    MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "2000"))
     TOP_P: float = float(os.getenv("TOP_P", "0.9"))
+
+    # 视觉模型配置
+    VISION_MODEL_NAME: str = os.getenv("VISION_MODEL_NAME", "gpt-4o")
+    VISION_API_KEY: str = os.getenv("VISION_API_KEY", "")
+    VISION_API_URL: str = os.getenv(
+        "VISION_API_URL",
+        "https://api.openai.com/v1/chat/completions"
+    )
 
     # 日志配置
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

@@ -367,6 +367,237 @@ async def delete_bubble_note(note_id: int, user_id: int) -> bool:
 
 
 # ========================================
+# 地灵 AI 处理结果记录相关函数
+# ========================================
+
+async def create_genius_loci_record(
+    bubble_id: int,
+    user_id: int,
+    ai_process_type: int,
+    ai_result: str,
+    model_version: str = "Qwen2.5-7B",
+    expire_time: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    创建地灵 AI 处理结果记录
+
+    Args:
+        bubble_id: 关联的气泡 ID
+        user_id: 用户 ID
+        ai_process_type: AI 处理类型（1-分类/2-关键词/3-推荐/4-合规/5-对话总结）
+        ai_result: AI 处理结果（JSON 字符串）
+        model_version: 模型版本号
+        expire_time: 过期时间（可选）
+
+    Returns:
+        创建的记录数据，失败则返回 None
+    """
+    try:
+        client = db.get_client(use_admin=True)
+
+        # 构建插入数据
+        insert_data = {
+            "bubble_id": bubble_id,
+            "user_id": user_id,
+            "ai_process_type": ai_process_type,
+            "ai_result": ai_result,
+            "model_version": model_version,
+            "is_effective": 1
+        }
+
+        if expire_time:
+            insert_data["expire_time"] = expire_time
+
+        response = client.table("genius_loci_record").insert(insert_data).execute()
+
+        if response.data:
+            logger.info(f"成功创建地灵AI记录, bubble_id={bubble_id}, user_id={user_id}, type={ai_process_type}")
+            return response.data[0]
+        else:
+            raise Exception("创建记录失败: 无返回数据")
+
+    except Exception as e:
+        logger.error(f"创建地灵AI记录失败: {e}")
+        return None
+
+
+async def get_nearby_genius_loci_memory(
+    gps_longitude: float,
+    gps_latitude: float,
+    radius_km: float = 1.0,
+    exclude_user_id: Optional[int] = None,
+    ai_process_type: int = 5  # 5-对话总结
+) -> Optional[Dict[str, Any]]:
+    """
+    获取指定位置附近的地灵对话记忆（最近的一条）
+
+    用于地灵首次对话时检索历史记忆，构建上下文
+
+    Args:
+        gps_longitude: 经度
+        gps_latitude: 纬度
+        radius_km: 搜索半径（公里），默认 1km
+        exclude_user_id: 排除的用户 ID（避免检索到当前用户自己的记忆）
+        ai_process_type: AI 处理类型，默认为 5（对话总结）
+
+    Returns:
+        最近的一条记忆记录，如果没有则返回 None
+    """
+    try:
+        client = db.get_client()
+
+        # 计算边界框（约等于指定半径）
+        # 1度约等于111公里，所以 radius_km 对应约 radius_km/111 度
+        delta = radius_km / 111.0
+
+        # 关联 bubble_note 表进行查询
+        # 需要通过 bubble_note 的地理位置过滤
+        query = """
+            SELECT r.*, b.gps_longitude, b.gps_latitude
+            FROM genius_loci_record r
+            JOIN bubble_note b ON r.bubble_id = b.id
+            WHERE r.ai_process_type = %s
+            AND r.is_effective = 1
+            AND b.gps_longitude BETWEEN %s AND %s
+            AND b.gps_latitude BETWEEN %s AND %s
+        """
+
+        params = [ai_process_type,
+                  gps_longitude - delta, gps_longitude + delta,
+                  gps_latitude - delta, gps_latitude + delta]
+
+        if exclude_user_id is not None:
+            query += " AND r.user_id != %s"
+            params.append(exclude_user_id)
+
+        query += " ORDER BY r.process_time DESC LIMIT 1"
+
+        # 使用 RPC 执行原生 SQL
+        response = client.rpc("execute_sql", {"sql": query, "params": params}).execute()
+
+        if response.data and len(response.data) > 0:
+            logger.info(f"检索到附近地灵记忆, id={response.data[0]['id']}")
+            return response.data[0]
+        else:
+            logger.info(f"附近 {radius_km}km 内无地灵记忆")
+            return None
+
+    except Exception as e:
+        logger.error(f"检索附近地灵记忆失败: {e}")
+        # 降级方案：使用 Supabase 查询（不包含距离计算）
+        return await _get_nearby_memory_fallback(gps_longitude, gps_latitude, radius_km, exclude_user_id, ai_process_type)
+
+
+async def _get_nearby_memory_fallback(
+    gps_longitude: float,
+    gps_latitude: float,
+    radius_km: float,
+    exclude_user_id: Optional[int],
+    ai_process_type: int
+) -> Optional[Dict[str, Any]]:
+    """
+    获取附近记忆的降级方案（不使用 JOIN，简化查询）
+
+    注意：此方案无法获取 gps_longitude 和 gps_latitude，仅用于 API 不可用时的降级
+    """
+    try:
+        client = db.get_client()
+
+        # 简化查询：只查询 genius_loci_record 表
+        # 假设调用方已经有位置信息，这里不做地理位置过滤
+        query = client.table("genius_loci_record").select("*")
+        query = query.eq("ai_process_type", ai_process_type)
+        query = query.eq("is_effective", 1)
+
+        if exclude_user_id is not None:
+            query = query.neq("user_id", exclude_user_id)
+
+        query = query.order("process_time", desc=True).limit(1)
+
+        response = query.execute()
+
+        if response.data:
+            logger.info(f"检索到地灵记忆（降级）, id={response.data[0]['id']}")
+            return response.data[0]
+        else:
+            return None
+
+    except Exception as e:
+        logger.error(f"降级查询失败: {e}")
+        return None
+
+
+async def get_bubble_genius_loci_records(
+    bubble_id: int
+) -> List[Dict[str, Any]]:
+    """
+    获取某个气泡的所有 AI 处理记录
+
+    Args:
+        bubble_id: 气泡 ID
+
+    Returns:
+        该气泡的 AI 处理记录列表
+    """
+    try:
+        client = db.get_client()
+
+        response = client.table("genius_loci_record") \
+            .select("*") \
+            .eq("bubble_id", bubble_id) \
+            .eq("is_effective", 1) \
+            .order("process_time", desc=True) \
+            .execute()
+
+        if response.data:
+            return response.data
+        return []
+
+    except Exception as e:
+        logger.error(f"获取气泡AI记录失败: {e}")
+        return []
+
+
+async def get_user_genius_loci_memories(
+    user_id: int,
+    ai_process_type: Optional[int] = None,
+    limit: int = 10
+) -> List[Dict[str, Any]]:
+    """
+    获取用户的地灵 AI 处理记录列表
+
+    Args:
+        user_id: 用户 ID
+        ai_process_type: AI 处理类型（可选，不指定则返回所有类型）
+        limit: 返回数量限制
+
+    Returns:
+        用户的 AI 处理记录列表
+    """
+    try:
+        client = db.get_client()
+
+        query = client.table("genius_loci_record").select("*")
+        query = query.eq("user_id", user_id)
+        query = query.eq("is_effective", 1)
+
+        if ai_process_type is not None:
+            query = query.eq("ai_process_type", ai_process_type)
+
+        query = query.order("process_time", desc=True).limit(limit)
+
+        response = query.execute()
+
+        if response.data:
+            return response.data
+        return []
+
+    except Exception as e:
+        logger.error(f"获取用户AI记录失败: {e}")
+        return []
+
+
+# ========================================
 # 测试代码
 # ========================================
 

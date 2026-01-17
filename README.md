@@ -1,6 +1,14 @@
 # 气泡笔记 (Bubble Note) API
 
-基于 FastAPI + Supabase + 阿里云 OSS 的气泡笔记服务
+基于 FastAPI + Supabase + 阿里云 OSS 的气泡笔记服务 + 地灵对话系统
+
+## ✨ 核心功能
+
+- 📝 **气泡笔记**：创建、查询附近笔记、图片上传
+- 🤖 **地灵对话**：基于视觉感知和地理记忆的智能对话系统
+- 🧠 **记忆检索**：基于 PostGIS 的地理位置记忆检索
+- 👁️ **视觉感知**：多模态图片解析和场景理解
+- 💬 **流式响应**：实时流式对话，提升用户体验
 
 ## 快速开始
 
@@ -18,7 +26,25 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-### 3. 启动服务
+配置说明：
+- Supabase：数据库和存储服务
+- 魔搭模型：对话大模型 API
+- 视觉模型：多模态图片解析 API（可选 GPT-4o、Gemini Vision 等）
+- 阿里云 OSS：图片存储服务
+
+### 3. 初始化数据库
+
+在 Supabase SQL Editor 中执行：
+
+```bash
+# 执行气泡笔记表结构
+psql -f docs/database/bubble_note.sql
+
+# 执行地灵对话记忆表结构
+psql -f docs/database/genius_loci_record.sql
+```
+
+### 4. 启动服务
 
 ```bash
 python run.py
@@ -26,7 +52,7 @@ python run.py
 
 服务将在 `http://localhost:8000` 启动
 
-### 4. 访问 API 文档
+### 5. 访问 API 文档
 
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
@@ -38,7 +64,8 @@ app/
 ├── main.py              # FastAPI 应用入口
 ├── api/                 # API 路由
 │   └── v1/
-│       └── bubbles.py   # 气泡笔记接口
+│       ├── bubbles.py   # 气泡笔记接口
+│       └── genius_loci.py # 地灵对话接口
 ├── core/                # 核心模块
 │   ├── config.py        # 配置管理
 │   ├── database.py      # 数据库连接
@@ -46,7 +73,10 @@ app/
 ├── models/              # 数据模型
 │   └── schemas.py       # Pydantic 模型
 ├── services/            # 业务服务
-│   └── bubble_service.py
+│   ├── vision_service.py     # 视觉感知服务
+│   ├── chat_service.py       # 对话流式服务
+│   ├── genius_loci_service.py# 地灵核心服务
+│   └── bubble_service.py     # 气泡笔记服务
 └── utils/               # 工具模块
     └── emotion_analyzer.py
 ```
@@ -54,6 +84,8 @@ app/
 详细结构说明请查看 [STRUCTURE.md](STRUCTURE.md)
 
 ## API 端点
+
+### 气泡笔记接口
 
 | 方法 | 端点 | 描述 |
 |------|------|------|
@@ -63,6 +95,15 @@ app/
 | GET | `/api/v1/bubbles/top` | 获取 Top 气泡 |
 | DELETE | `/api/v1/bubbles/note/{note_id}` | 删除笔记 |
 | GET | `/api/v1/bubbles/health` | 健康检查 |
+
+### 地灵对话接口
+
+| 方法 | 端点 | 描述 |
+|------|------|------|
+| POST | `/api/v1/genius-loci/chat` | 地灵流式对话 (SSE) |
+| GET | `/api/v1/genius-loci/health` | 健康检查 |
+
+📖 **地灵对话详细文档：** [docs/GENIUS_LOCI_GUIDE.md](docs/GENIUS_LOCI_GUIDE.md)
 
 ## 调用示例
 
